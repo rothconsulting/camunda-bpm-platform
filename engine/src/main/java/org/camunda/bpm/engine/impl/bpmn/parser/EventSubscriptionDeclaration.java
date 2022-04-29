@@ -16,6 +16,7 @@
  */
 package org.camunda.bpm.engine.impl.bpmn.parser;
 
+import org.camunda.bpm.engine.delegate.BaseDelegateExecution;
 import org.camunda.bpm.engine.delegate.VariableScope;
 import org.camunda.bpm.engine.impl.bpmn.helper.BpmnProperties;
 import org.camunda.bpm.engine.impl.core.model.CallableElement;
@@ -53,6 +54,8 @@ public class EventSubscriptionDeclaration implements Serializable {
   protected boolean isStartEvent;
 
   protected EventSubscriptionJobDeclaration jobDeclaration = null;
+
+  BaseDelegateExecution contextExecution;
 
   public EventSubscriptionDeclaration(Expression eventExpression, EventType eventType) {
     this.eventName = eventExpression;
@@ -133,6 +136,10 @@ public class EventSubscriptionDeclaration implements Serializable {
     this.jobDeclaration = jobDeclaration;
   }
 
+  public void setContextExecution(BaseDelegateExecution contextExecution) {
+    this.contextExecution = contextExecution;
+  }
+
   public EventSubscriptionEntity createSubscriptionForStartEvent(ProcessDefinitionEntity processDefinition) {
     EventSubscriptionEntity eventSubscriptionEntity = new EventSubscriptionEntity(eventType);
 
@@ -170,7 +177,7 @@ public class EventSubscriptionDeclaration implements Serializable {
    */
   public String resolveExpressionOfEventName(VariableScope scope) {
     if (isExpressionAvailable()) {
-      return (String) eventName.getValue(scope);
+      return (String) eventName.getValue(scope, contextExecution);
     } else {
       return null;
     }

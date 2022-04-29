@@ -173,6 +173,14 @@ public abstract class PvmExecutionImpl extends CoreExecution implements
 
   protected boolean activityInstanceEndListenersFailed = false;
 
+  /**
+   * Controls weather the current {@link Context#getBpmnExecutionContext() context execution}
+   * will be updated when creating an event subscription for the current scope.
+   *
+   * @see #setUpdateContextExecution(boolean)
+   */
+  protected boolean updateContextExecution = false;
+
   // sequence counter ////////////////////////////////////////////////////////
   protected long sequenceCounter = 0;
 
@@ -1042,16 +1050,16 @@ public abstract class PvmExecutionImpl extends CoreExecution implements
     // and the activity is left with the scope
     // execution)
     recyclableExecutions.remove(this);
-    
+
     // End all other executions synchronously.
     // This ensures a proper execution tree in case
     // the activity is marked as 'async-after'.
     // Otherwise, ending the other executions as well
     // as the next logical operation are executed
-    // asynchronously. The order of those operations can 
-    // not be guaranteed anymore. This can lead to executions 
-    // getting stuck in case they rely on ending the other 
-    // executions first. 
+    // asynchronously. The order of those operations can
+    // not be guaranteed anymore. This can lead to executions
+    // getting stuck in case they rely on ending the other
+    // executions first.
     for (ActivityExecution execution : recyclableExecutions) {
       execution.setIgnoreAsync(true);
       execution.end(_transitions.isEmpty());
@@ -1914,6 +1922,10 @@ public abstract class PvmExecutionImpl extends CoreExecution implements
 
   public void setNextActivity(PvmActivity nextActivity) {
     this.nextActivity = nextActivity;
+  }
+
+  public void setUpdateContextExecution(boolean updateContextExecution) {
+    this.updateContextExecution = updateContextExecution;
   }
 
   public PvmExecutionImpl getParentScopeExecution(boolean considerSuperExecution) {

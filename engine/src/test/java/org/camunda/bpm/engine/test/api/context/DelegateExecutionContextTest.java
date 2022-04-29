@@ -16,21 +16,22 @@
  */
 package org.camunda.bpm.engine.test.api.context;
 
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.assertNotNull;
-import static junit.framework.TestCase.assertNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.context.DelegateExecutionContext;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.ExecutionListener;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
-import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.test.ProcessEngineRule;
+import org.camunda.bpm.engine.test.mock.Mocks;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
 import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
@@ -42,7 +43,7 @@ import org.junit.rules.RuleChain;
  */
 public class DelegateExecutionContextTest {
 
-  protected static final BpmnModelInstance DELEGATION_PROCESS = Bpmn.createExecutableProcess("process1")
+  protected static final BpmnModelInstance SERVICE_TASK_DELEGATE_PROCESS = Bpmn.createExecutableProcess("process1")
           .startEvent()
           .serviceTask("serviceTask1")
             .camundaClass(DelegateClass.class.getName())
@@ -56,42 +57,81 @@ public class DelegateExecutionContextTest {
           .endEvent()
           .done();
 
+  protected static final BpmnModelInstance SIGNAL_EVENT_PROCESS = Bpmn.createExecutableProcess("process3")
+      .startEvent()
+        .intermediateCatchEvent("catchSignal")
+          .signal("${getCurrentActivityIdBean.getCurrentActivityId()}")
+        .endEvent()
+        .done();
+
   protected ProcessEngineRule engineRule = new ProvidedProcessEngineRule();
   protected ProcessEngineTestRule testHelper = new ProcessEngineTestRule(engineRule);
 
   @Rule
   public RuleChain ruleChain = RuleChain.outerRule(engineRule).around(testHelper);
 
+  RuntimeService runtimeService;
+
+  @Before
+  public void setup() {
+    runtimeService = engineRule.getRuntimeService();
+  }
+
+  @After
+  public void tearDown() {
+    Mocks.reset();
+  }
+
   @Test
   public void testDelegateExecutionContext() {
     // given
-    ProcessDefinition definition = testHelper.deployAndGetDefinition(DELEGATION_PROCESS);
+    ProcessDefinition definition = testHelper.deployAndGetDefinition(SERVICE_TASK_DELEGATE_PROCESS);
     // a process instance with a service task and a java delegate
-    ProcessInstance instance = engineRule.getRuntimeService().startProcessInstanceById(definition.getId());
+    runtimeService.startProcessInstanceById(definition.getId());
 
     //then delegation execution context is no more available
     DelegateExecution execution = DelegateExecutionContext.getCurrentDelegationExecution();
-    assertNull(execution);
+    assertThat(execution).isNull();
   }
-
 
   @Test
   public void testDelegateExecutionContextWithExecutionListener() {
     //given
     ProcessDefinition definition = testHelper.deployAndGetDefinition(EXEUCTION_LISTENER_PROCESS);
     // a process instance with a service task and an execution listener
-    engineRule.getRuntimeService().startProcessInstanceById(definition.getId());
+    runtimeService.startProcessInstanceById(definition.getId());
 
     //then delegation execution context is no more available
     DelegateExecution execution = DelegateExecutionContext.getCurrentDelegationExecution();
-    assertNull(execution);
+    assertThat(execution).isNull();
+  }
+
+  @Test
+  public void shouldFindSignalActivityIdThroughDelegateExecutionContext() {
+    // given
+    // register Bean
+    Mocks.register("getCurrentActivityIdBean", new GetCurrentActivityIdBean());
+
+    // a process instance with a signal event calling getCurrentActivityIdBean.getCurrentActivityId() to resolve referenced signal
+    ProcessDefinition definition = testHelper.deployAndGetDefinition(SIGNAL_EVENT_PROCESS);
+    runtimeService.startProcessInstanceById(definition.getId());
+
+    // when send signal with current activity id as name
+    runtimeService.createSignalEvent("catchSignal").send();
+
+    // then signal was received and process instance finished
+    assertThat(runtimeService.createProcessInstanceQuery().count()).as("process instance count").isZero();
+
   }
 
   public static class ExecutionListenerImpl implements ExecutionListener {
 
     @Override
     public void notify(DelegateExecution execution) throws Exception {
-      checkDelegationContext(execution);
+      //then delegation execution context is available
+      DelegateExecution delegateExecution = DelegateExecutionContext.getCurrentDelegationExecution();
+      assertThat(delegateExecution).isNotNull();
+      assertThat(delegateExecution).isEqualTo(execution);
     }
   }
 
@@ -99,13 +139,18 @@ public class DelegateExecutionContextTest {
 
     @Override
     public void execute(DelegateExecution execution) throws Exception {
-      checkDelegationContext(execution);
+      //then delegation execution context is available
+      DelegateExecution delegateExecution = DelegateExecutionContext.getCurrentDelegationExecution();
+      assertThat(delegateExecution).isNotNull();
+      assertThat(delegateExecution).isEqualTo(execution);
     }
   }
 
-  protected static void checkDelegationContext(DelegateExecution execution) {
-    //then delegation execution context is available
-    assertNotNull(DelegateExecutionContext.getCurrentDelegationExecution());
-    assertEquals(DelegateExecutionContext.getCurrentDelegationExecution(), execution);
+  public class GetCurrentActivityIdBean {
+
+    public String getCurrentActivityId() {
+      return DelegateExecutionContext.getCurrentDelegationExecution().getCurrentActivityId();
+    }
   }
+
 }

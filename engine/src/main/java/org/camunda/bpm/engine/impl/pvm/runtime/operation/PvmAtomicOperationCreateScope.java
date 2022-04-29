@@ -16,9 +16,9 @@
  */
 package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
+import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.PvmLogger;
-import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
 /**
@@ -40,6 +40,7 @@ public abstract class PvmAtomicOperationCreateScope implements PvmAtomicOperatio
       propagatingExecution = execution.createExecution();
       propagatingExecution.setActivity(activity);
       propagatingExecution.setTransition(execution.getTransition());
+      propagatingExecution.setUpdateContextExecution(true);
       execution.setTransition(null);
       execution.setActive(false);
       execution.setActivity(null);
