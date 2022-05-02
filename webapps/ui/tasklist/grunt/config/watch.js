@@ -42,7 +42,7 @@ module.exports = function(config, watchConf) {
 
   watchConf.tasklist_dependencies = {
     options: options,
-    files: ['<%= pkg.gruntConfig.enTranslationDir %>/**/*.json'],
+    files: ['ui/tasklist/client/en.json'],
     tasks: ['localescompile:tasklist_locales']
   };
 
